@@ -6,6 +6,7 @@
 //    were used in my PhD research and for several later papers
 // they were ported to Linux gcc and g++ around 2015 on 32-bit x86
 // they were ported again for 64-bit arch in 2025, with the xlns32_ideal option
+// they were modified with xlns32_alt for streamlined + on modern arch w/ ovfl detect 
 // they are based on similar math foundation (Gaussian logs, sb and db) as Python xlns,
 //    but use different internal storage format:
 //    +------+-------------------------+
@@ -97,11 +98,11 @@ inline xlns32 xlns32_div(xlns32 x, xlns32 y)
   #include <math.h>
   inline xlns32 xlns32_sb_ideal(xlns32 z)
   {
-	return ((xlns32) ((log(1+ pow(2.0, ((float) z) / xlns32_scale) )/log(2.0))*xlns32_scale+.5));
+	return ((xlns32) ((log(1+ pow(2.0, ((double) z) / xlns32_scale) )/log(2.0))*xlns32_scale+.5));
   }
   inline xlns32 xlns32_db_ideal(xlns32 z)
   {
-	return ((xlns32_signed) ((log( pow(2.0, ((float) z) / xlns32_scale) - 1 )/log(2.0))*xlns32_scale+.5));
+	return ((xlns32_signed) ((log( pow(2.0, ((double) z) / xlns32_scale) - 1 )/log(2.0))*xlns32_scale+.5));
   }
 #else
   #define xlns32_sb xlns32_sb_macro
@@ -142,7 +143,14 @@ xlns32 xlns32_z, xlns32_zh;
 ) \
 )
 
+//xlns32_signed xlns32_sb(xlns32_signed z)
+//xlns32 xlns32_sb(xlns32 z)
+//{
+//	xlns32 xlns32_z, xlns32_zh;
+//	return xlns32_sb_macro(z);
+//}
 
+//xlns32_signed xlns32_dbtrans3(xlns32_signed z)
 xlns32 xlns32_dbtrans3(xlns32 z)
 {
 	xlns32 z0,z1,z2,temp2;
@@ -195,6 +203,35 @@ xlns32 xlns32_dbtrans3(xlns32 z)
 
 #endif
 
+#ifdef xlns32_alt
+
+inline xlns32 xlns32_add(xlns32 x, xlns32 y)
+{
+    xlns32 minxyl, maxxy, xl, yl, usedb; 
+    xlns32_signed adjust, adjustez;
+    xlns32_signed z;
+    xl = x & xlns32_logmask;
+    yl = y & xlns32_logmask;
+    minxyl = (yl>xl) ? xl : yl;
+    maxxy  = (xl>yl) ? x  : y;
+    z = minxyl - (maxxy&xlns32_logmask);
+    usedb = xlns32_signmask&(x^y); 
+    #ifdef xlns32_ideal
+     float pm1 = usedb ? -1.0 : 1.0;
+     //adjust = log(1.0 + pm1*pow(2.0,((double)z)/xlns32_scale))/log(2.0)*xlns32_scale+.5;
+     adjust = z+((xlns32_signed)(log(pm1+pow(2.0,-((double)z)/xlns32_scale))/log(2.0)*xlns32_scale+.5));
+    #else
+     adjust = usedb ? z + ((xlns32_signed)xlns32_db(-z)) : 
+                      z + ((xlns32_signed)xlns32_sb(-z)); 
+    #endif
+    adjustez = (z < -xlns32_esszer) ? 0 : adjust; 
+    //printf("z=%d %d %d\n",z,adjust,adjustez);
+    return ((z==0) && usedb) ? 
+                     xlns32_zero :
+                     xlns32_mul(maxxy, xlns32_logsignmask + adjustez);
+}
+
+#else
 
 //++++ X-X ERROR fixed
 
@@ -225,7 +262,7 @@ xlns32 xlns32_add(xlns32 x, xlns32 y)
 		return y + xlns32_sb(z);
 	}
 }
-
+#endif
 
 #define xlns32_sub(x,y) xlns32_add(x,xlns32_neg(y))
 
@@ -252,16 +289,16 @@ float xlns322fp(xlns32 x)
 	if (xlns32_abs(x) == xlns32_zero)
 		return (0.0);
 	else if (xlns32_sign(x))
-		return (float) (-pow(2.0,((float) (((xlns32_signed) (xlns32_abs(x)-xlns32_logsignmask))))
+		return (float) (-pow(2.0,((double) (((xlns32_signed) (xlns32_abs(x)-xlns32_logsignmask))))
 					/((float) xlns32_scale)));
 	else {
-		return (float) (+pow(2.0,((float) (((xlns32_signed) (xlns32_abs(x)-xlns32_logsignmask))))
+		return (float) (+pow(2.0,((double) (((xlns32_signed) (xlns32_abs(x)-xlns32_logsignmask))))
 					/((float) xlns32_scale)));
 	//else if (xlns32_sign(x))
-	//	return (float) (-pow(2.0,((float) ((xlns32_signed) xlns32_abs(x^xlns32_logsignmask)<<1)/2)
+	//	return (float) (-pow(2.0,((double) ((xlns32_signed) xlns32_abs(x^xlns32_logsignmask)<<1)/2)
 	//				/((float) xlns32_scale)));
 	//else {
-	//	return (float) (+pow(2.0,((float) ((xlns32_signed) (x^xlns32_logsignmask)<<1)/2)
+	//	return (float) (+pow(2.0,((double) ((xlns32_signed) (x^xlns32_logsignmask)<<1)/2)
 	//				/((float) xlns32_scale)));
 	}
 }
