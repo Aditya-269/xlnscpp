@@ -5,5 +5,5 @@ This repository provides `xlns16.cpp` and `xlns32.cpp` along with a few programs
 
 Unlike the Python xlns, here internal representation is not twos complement; it is offset by a constant (`xlns16_logsignmask` or `xlns32_logsignmask`). With the 16-bit format of `xlns16.cpp`, this is roughly similar to `bfloat16` (1 sign bit, 8 `int(log2)` bits, 7 `frac(log2)` bits). With the 32-bit format of `xlns32.cpp`, this is roughly similar to `float` (1 sign bit, 8 `int(log2)` bits, 23 `frac(log2)` bits). There is an exact representation of 0.0, but no subnormals or NaNs.
 
-
+There are two ways to use this library: function calls (like `xlns16_add` or `xlns32_add`) that operate on integer representations (`typedef` as `xlns_16` or `xlns_32`) that represent the LNS value; or C++ overloaded operators that operate on an LNS class (either `xlns16_float` or `xlns32_float`).  The functions are a bit faster but overloading is easier.  
 
