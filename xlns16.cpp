@@ -7,8 +7,10 @@
 // they were ported again for 64-bit arch in 2025, 
 //    modified for 16-bit similar to bfloat (see xlns32.cpp for original float-like code)
 //    with the xlns16_ideal option
-//    with a Mitchell LPVIP method for the non-ideal case
+//    with a Mitchell LPVIP method for the non-ideal case (Apr'25 few sml err/bugs vs python lpvip)
 //    with xlns16_alt for streamlined + for modern arch w/ ovfl test
+//    with xlns16_table for fast table lookup conversion (fast sb db if xlns_alt and not ideal)
+//      each cvt table 256Kbyte; sb db table each 5Kbyte
 // they are based on similar math foundation (Gaussian logs, sb and db) as Python xlns,
 //    but use different internal storage format:
 //    +------+-------------------------+
@@ -138,6 +140,9 @@ inline xlns16 xlns16_div(xlns16 x, xlns16 y)
 
 
 #ifdef xlns16_alt
+ #ifdef xlns16_table
+ #include "xlns16sbdbtbl.h"
+ #endif
 
 inline xlns16 xlns16_add(xlns16 x, xlns16 y)
 {
@@ -152,20 +157,30 @@ inline xlns16 xlns16_add(xlns16 x, xlns16 y)
     #ifdef xlns16_ideal
      float pm1 = usedb ? -1.0 : 1.0;
      adjust = z+((xlns16_signed)(log(pm1+pow(2.0,-((double)z)/xlns16_scale))/log(2.0)*xlns16_scale+.5));
+     adjustez = (z < -xlns16_esszer) ? 0 : adjust; 
     #else
-     //adjust = usedb ? xlns16_db_neg(z) : 
-     //                 xlns16_sb_neg(z); 
-     xlns16_signed precond = (usedb==0) ? ((-z)>>3) :          // -.125*z 
+     #ifdef xlns16_table
+       xlns16_signed non_ez_z = (z <= -xlns16_esszer) ? xlns16_esszer-1 : -z; 
+       adjustez = usedb ? xlns16dbtbl[non_ez_z] : 
+                          xlns16sbtbl[non_ez_z]; 
+     #else
+      #ifdef xlns16_altopt
+       xlns16_signed precond = (usedb==0) ? ((-z)>>3) :          // -.125*z 
                 (z < -(2<<xlns16_F)) ? 5<<(xlns16_F-3):        //  0.625
                                 (z >> 2) + (9 << (xlns16_F-3));//  .25*z + 9/8
-     xlns16_signed postcond = (z <= -(3<<xlns16_F)) ? 0: 
+       xlns16_signed postcond = (z <= -(3<<xlns16_F)) ? 0: 
                             z >= -(3<<(xlns16_F-2)) ? -(1<<(xlns16_F-6)) : 
                                                       +(1<<(xlns16_F-6));
-     xlns16_signed mitch = (-z >= 1<<xlns16_F)||(usedb==0) ? xlns16_mitch(z+precond) : 
+       xlns16_signed mitch = (-z >= 1<<xlns16_F)||(usedb==0) ? xlns16_mitch(z+precond) : 
                                           -xlns16_db_ideal(-z)-z; // use ideal for singularity
-     adjust = usedb ? -mitch : (z==0) ? 1<<xlns16_F : mitch + postcond;
+       adjust = usedb ? -mitch : (z==0) ? 1<<xlns16_F : mitch + postcond;
+      #else
+       adjust = usedb ? xlns16_db_premit_neg(z) : 
+                        xlns16_sb_premit_neg(z); 
+      #endif
+      adjustez = (z < -xlns16_esszer) ? 0 : adjust; 
+     #endif
     #endif
-    adjustez = (z < -xlns16_esszer) ? 0 : adjust; 
     return ((z==0) && usedb) ? 
                      xlns16_zero :
                      xlns16_mul(maxxy, xlns16_logsignmask + adjustez);
@@ -212,6 +227,25 @@ xlns16 xlns16_add(xlns16 x, xlns16 y)
 
 #include <math.h>
 
+#ifdef xlns16_table
+
+#include "xlns16revcvtbl.h"
+
+inline xlns16 fp2xlns16(float x)
+{
+	return xlns16revcvtbl[(*(unsigned *)&x)>>15];
+}
+
+#include "xlns16cvtbl.h"
+
+inline float xlns162fp(xlns16 x)
+{
+	return xlns16cvtbl[x];
+}
+
+
+#else
+
 xlns16 fp2xlns16(float x)
 {
 	if (x==0.0)
@@ -223,6 +257,7 @@ xlns16 fp2xlns16(float x)
 		return (((xlns16_signed) ((log(fabs(x))/log(2.0))*xlns16_scale))
 			  |xlns16_signmask)^xlns16_logsignmask;
 }
+
 
 float xlns162fp(xlns16 x)
 {
@@ -237,12 +272,7 @@ float xlns162fp(xlns16 x)
 	}
 }
 
-	//else if (xlns16_sign(x))
-		//return (float) (-pow(2.0,((double) (((xlns16_signed) xlns16_abs(x^xlns16_logsignmask))<<1)/2)
-		//			/((float) xlns16_scale)));
-	//else {
-	//	return (float) (+pow(2.0,((double) (((xlns16_signed) xlns16_abs(x^xlns16_logsignmask))<<1)/2)
-	//				/((float) xlns16_scale)));
+#endif
 
 /*END OF PORTABLE CODE THAT DEPENDS ON <math.h>*/
 
@@ -339,7 +369,7 @@ xlns16 xlns16_cachecontent[xlns16_cachesize];
 float xlns16_cachetag[xlns16_cachesize];
 long xlns16_misses=0;
 long xlns16_hits=0;
-#define xlns16_cacheon 1
+#define xlns16_cacheon 0// off for table
 
 xlns16_float float2xlns16_(float y) {
 	xlns16_float z;
