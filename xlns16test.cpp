@@ -2,7 +2,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <iostream>
-//#define xlns16_ideal
+#ifdef xlns16case
+ #include "xlns16testcase.h"
+#else
+ //#define xlns16_ideal
+ #define xlns16_alt
+ #define xlns16_altopt
+ //#define xlns16_table
+#endif
+  
+
 #include "xlns16.cpp"
 
 
@@ -443,7 +452,9 @@ int main(void)
 {
 	char ch;
 	printf("xlns16 C++ (16-bit like bfloat) %ld\n",sizeof(xlns16));
-
+	#ifdef xlns16case
+           printf("xlns16_float: %s",xlns16_whatcase);
+    	#endif
 	testcompare();
 	test5fp();
 	test5xlns16();
@@ -457,6 +468,10 @@ int main(void)
 	test3fp();
 	test3xlns16();
 	test3xlns16_float();
+
+	#ifdef xlns16case
+	   	exit(0);
+	#endif
 
 	scanf("%c",&ch);
 	test4fp(2000);
