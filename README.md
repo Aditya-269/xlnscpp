@@ -10,5 +10,17 @@ There are two ways to use this library: function calls (like `xlns16_add` or `xl
 All of the global symbols used begin with either `xlns16` and `xlns32`.  There are several compile-time options indicated by defining macros before including `xlns16.cpp` and `xlns32.cpp` in the main program.  Defining `xlns16_ideal` or `xlns32_ideal` causes the Gaussian Log computation to occur as accurately as possible by doing it in floating point. 
 Omitting this gives a cotransformation/interpolation approximation for 32-bit (at a cost of a few 100K bytes) and a LPVIP approximation for 16-bit (when `xlns16_altopt` is also defined, a less accurate LPVIP algorithm is used).  Defining `xlns16_alt` or `xlns_32alt` uses an addition algorithm that reduces branching (in the sometimes false hope of improved performance on modern architectures).  Omitting this defaults to an equivalent algorithm that runs better on older architectures (like say 8086). Defining `xlns16_table` causes conversion to/from float to occur from tables.  When `xlns16_alt` is also defined, Gaussian Log computation comes from tables.  Both of these improve speed at the cost of less than one megabyte.  The file `xlns16testcase.h` itemizes the meaningful combinations of these options to help automate the regression testing of these options.
 
-The sister repository xlnscuda has related routines that work on CUDA devices.
+There is a sister repository, xlnscuda, which has related routines that work on CUDA devices.
+
+ # References
+
+M. G. Arnold, et al. “Arithmetic cotransformations in the Real and
+Complex Logarithmic Number Systems,” _IEEE Trans. Comput._, vol. 47,
+no. 7, pp.777–786, July 1998.
+
+
+M. G. Arnold, "LPVIP: A Low-power ROM-Less ALU for Low-Precision LNS," 
+_14th International Workshop on Power and Timing Modeling, Optimization and Simulation_,
+LNCS 3254, pp.675-684, Santorini, Greece, Sept. 2004.
+
 
